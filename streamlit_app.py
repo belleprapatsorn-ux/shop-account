@@ -152,7 +152,7 @@ with tab2:
 
 # ================= TAB 3: Dashboard =================
 with tab3:
-    st.header("📊 ภาพรวมร้านนายโจ")
+    st.header("📊 Overall ร้านก๋วยเตี๋ยวไก่นายโจ")
     if not st.session_state.df.empty:
         df = st.session_state.df.copy()
         df['Date'] = pd.to_datetime(df['Date'])
