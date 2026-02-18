@@ -187,7 +187,7 @@ with tab3:
 
 # ================= TAB 4: Export =================
 with tab4:
-    st.header("🗂️ Export ส่งสรรพากร")
+    st.header("🗂️ Export")
     if not st.session_state.df.empty:
         st.dataframe(st.session_state.df)
         csv = st.session_state.df.to_csv(index=False).encode('utf-8-sig')
