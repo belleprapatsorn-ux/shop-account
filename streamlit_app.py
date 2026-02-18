@@ -20,7 +20,7 @@ def load_data():
     if os.path.exists(CSV_FILE):
         return pd.read_csv(CSV_FILE)
     else:
-        return pd.DataFrame(columns=["Date", "Type", "Category", "SubCategory", "Amount", "Image_Path", "Timestamp"])
+        return pd.DataFrame(columns=["Date", "Type", "Category", "SubCategory", "Amount", "Image_Path", "Timestamp", "Note"])
 
 def save_data(df):
     df.to_csv(CSV_FILE, index=False)
@@ -88,7 +88,8 @@ with tab1:
                 def add_rev(subcat, amount, img):
                     if amount > 0:
                         path = save_uploaded_image(img)
-                        new_rows.append({"Date": date_rev, "Type": "รายรับ", "Category": "รายได้จากการขาย", "SubCategory": subcat, "Amount": amount, "Image_Path": path, "Timestamp": timestamp})
+                        # เพิ่ม Note ว่างๆ ไปด้วย
+                        new_rows.append({"Date": date_rev, "Type": "รายรับ", "Category": "รายได้จากการขาย", "SubCategory": subcat, "Amount": amount, "Image_Path": path, "Timestamp": timestamp, "Note": ""})
                 
                 add_rev("เงินโอน", amt_transfer, img_transfer)
                 add_rev("เงินสด", amt_cash, None)
@@ -104,13 +105,13 @@ with tab1:
                 else:
                     st.warning("⚠️ ไม่มียอดเงิน")
 
-# ================= TAB 2: บันทึกรายจ่าย (อัปเดตตามที่ขอ) =================
+# ================= TAB 2: บันทึกรายจ่าย (แก้ไขตามที่ขอ) =================
 with tab2:
     st.header("📤 บันทึกค่าใช้จ่าย")
     with st.form("expense_form", clear_on_submit=True):
         date_exp = st.date_input("วันที่จ่าย", datetime.now())
         
-        # --- LOGIC หมวดหมู่ตามที่ Bell ระบุมาล่าสุด ---
+        # --- LOGIC หมวดหมู่ร้านก๋วยเตี๋ยวไก่ (ตามที่ Bell ระบุ) ---
         expense_structure = {
             "1. 🥬 จ่ายตลาดสด (ของสดรายวัน)": ["ร้านไก่สด", "ร้านตีนไก่", "เลือดไก่", "ร้านเส้นก๋วยเตี๋ยว", "ผักสด", "อื่น ๆ"],
             "2. 📦 สั่งของเข้าร้าน (Online/ห้าง)": ["แมคโคร (Makro)", "Shopee (ซื้อของ)", "Lazada (ซื้อของ)", "Grab Mart", "LineMan Mart", "เครื่องปรุงซอง"],
@@ -118,8 +119,14 @@ with tab2:
             "4. 🏠 ค่าที่ & ธรรมเนียม": ["ค่าเช่าที่", "ค่าน้ำ/ค่าไฟ", "ค่าส่งคืนสินค้า", "ค่าใช้จ่ายอื่น ๆ"]
         }
         
+        # ส่วนเลือกหมวดหมู่หลัก
         main_cat = st.selectbox("เลือกหมวดหมู่", list(expense_structure.keys()))
+        
+        # ส่วนเลือกรายการย่อย (Dropdown) ที่จะเปลี่ยนตามหมวดหมู่หลัก
         sub_cat = st.selectbox("ระบุรายการ", expense_structure[main_cat])
+        
+        # เพิ่มช่องหมายเหตุ (เผื่ออยากพิมพ์รายละเอียดเพิ่ม)
+        note_exp = st.text_input("รายละเอียดเพิ่มเติม (เช่น ซื้อผักบุ้ง, จ่ายค่าไฟเดือน 2)")
         
         amount_exp = st.number_input("จำนวนเงิน", min_value=0.0)
         img_exp = st.file_uploader("รูปใบเสร็จ", type=["jpg","png","jpeg"])
@@ -132,49 +139,8 @@ with tab2:
                 if amount_exp > 0:
                     path = save_uploaded_image(img_exp)
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    new_row = {"Date": date_exp, "Type": "รายจ่าย", "Category": main_cat, "SubCategory": sub_cat, "Amount": amount_exp, "Image_Path": path, "Timestamp": timestamp}
-                    st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_row])], ignore_index=True)
-                    save_data(st.session_state.df)
-                    st.success(f"✅ บันทึก '{sub_cat}' เรียบร้อย")
-                else:
-                    st.error("⚠️ ลืมใส่จำนวนเงิน")
-
-# ================= TAB 3: Dashboard =================
-with tab3:
-    st.header("📊 ภาพรวมร้านนายโจ")
-    if not st.session_state.df.empty:
-        df = st.session_state.df.copy()
-        df['Date'] = pd.to_datetime(df['Date'])
-        
-        c1, c2 = st.columns(2)
-        sel_year = c1.selectbox("ปี", sorted(df['Date'].dt.year.unique(), reverse=True))
-        sel_month = c2.selectbox("เดือน", sorted(df['Date'].dt.month.unique()))
-        
-        df_m = df[(df['Date'].dt.year == sel_year) & (df['Date'].dt.month == sel_month)]
-        
-        rev = df_m[df_m['Type']=="รายรับ"]['Amount'].sum()
-        exp = df_m[df_m['Type']=="รายจ่าย"]['Amount'].sum()
-        
-        k1, k2, k3 = st.columns(3)
-        k1.metric("รายรับ", f"฿{rev:,.0f}")
-        k2.metric("รายจ่าย", f"฿{exp:,.0f}")
-        k3.metric("กำไร", f"฿{rev-exp:,.0f}")
-        
-        st.divider()
-        c_chart1, c_chart2 = st.columns(2)
-        with c_chart1:
-            st.subheader("หมดเงินไปกับหมวดไหน?")
-            if not df_m[df_m['Type']=="รายจ่าย"].empty:
-                st.bar_chart(df_m[df_m['Type']=="รายจ่าย"].groupby("Category")['Amount'].sum(), color="#FF4B4B")
-        with c_chart2:
-            st.subheader("เจาะลึกรายจ่าย")
-            st.dataframe(df_m[df_m['Type']=="รายจ่าย"][['Date','SubCategory','Amount']])
-
-# ================= TAB 4: Export =================
-with tab4:
-    st.header("🗂️ Export ส่งสรรพากร")
-    if not st.session_state.df.empty:
-        st.dataframe(st.session_state.df)
-        csv = st.session_state.df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📥 ดาวน์โหลด Excel (CSV)", csv, f"NaiJo_Account_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv")
-        st.info("💡 ไฟล์ Excel จะมีชื่อรูปบอกในช่อง Image_Path ครับ")
+                    new_row = {
+                        "Date": date_exp, 
+                        "Type": "รายจ่าย", 
+                        "Category": main_cat, 
+                        "Sub
